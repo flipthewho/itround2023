@@ -1,18 +1,31 @@
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+import openai, re, requests
+import xml.etree.ElementTree as ET
 
 # Устанавливаем токен и создаем экземпляр бота
-TOKEN = 'цацу'
+TOKEN = '6123462347234cMBEEZBkGhBUNLMMTwkK9x0'
 bot = telegram.Bot(token=TOKEN)
+openai.api_key = "sk-n8TA37372347BlbkFJEgnuj4hqkL1yB4cwzRKx"
 
 # Создаем пустой массив для сохранения введенных пользователем данных
 user_inputs = []
 
 
+def get_price(product_name):
+    response = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=f"What is the price of {product_name}?",
+        max_tokens=50
+    )
+    price_str = response.choices[0].text.strip()
+    return price_str
+
+
 # Функция-обработчик команды /start
 def start(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, \
-                             text='Привет! Я бот, который поможет вам с оценкой стоимости затрат на содержание сервера. Напишите мне семь (7) сообщений, в которых будут указаны:\n1. Вендор\n2. Модель\n3. Год выпуска\n4. Срок аренды в месяцах\n5. Цена электричества за киловатт (примерно 4₽)\n6. Цена услуг провайдера (примерно 5000₽ в месяц)\n7. Стоимость аренды серверного помещения с охлаждением (примерно 20`000₽)')
+                             text='Привет! Я бот, который поможет вам с оценкой стоимости затрат на содержание сервера. Напишите мне семь (8) сообщений, в которых будут указаны:\n1. Вендор\n2. Модель\n3. Год выпуска\n4. Срок аренды в месяцах\n5. Цена электричества за киловатт (примерно 4₽)\n6. Цена услуг провайдера (примерно 5000₽ в месяц)\n7. Стоимость аренды серверного помещения с охлаждением (примерно 20`000₽)\n8. Количество серверов')
 
 
 # Функция-обработчик текстовых сообщений
@@ -22,12 +35,29 @@ def process_input(update, context):
     # Добавляем текст введенный пользователем в массив
     user_inputs.append(user_text)
     # Если пользователь ввел уже 7 значений, обрабатываем данные и возвращаем результат
-    if len(user_inputs) == 7:
-
-
-        arenda_electrich = (int(user_inputs[6]) + int(user_inputs[5])) * int(user_inputs[3])
-        #result = arenda_electrich +
-        context.bot.send_message(chat_id=update.effective_chat.id, text=f'Содержание такого оборудования обойдется вам в : {result}₽')
+    if len(user_inputs) == 8:
+        name = f'{user_inputs[0]} {user_inputs[1]} {user_inputs[2]}'
+        data = [get_price(name).split()]
+        price = []
+        # бегаем по списку ищем цену в долларах
+        for i in range(len(data)):
+            for x in data[i]:
+                if x[0] == '$':
+                    x = re.sub("[^0-9]", "", x)
+                    price.append(int(x))
+        # чуток парсим цб
+        usd_rate = float(
+            ET.fromstring(requests.get('https://www.cbr.ru/scripts/XML_daily.asp').text)
+            .find("./Valute[CharCode='USD']/Value")
+            .text.replace(',', '.')
+        )
+        # конвертируем в рубли
+        finallyprice = int(usd_rate * (sum(price) / len(price)))
+        # сервера - такие же компьютеры, и блоки питания по 0.5КВт, максимум 1кВт
+        arendaAndOther = int(user_inputs[5]) + int(user_inputs[6]) + (31 * 24 * 1 * int(user_inputs[4]))
+        result = (finallyprice * int(user_inputs[7])) + (arendaAndOther * int(user_inputs[3]))
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text=f'Содержание {name}, стоящего {finallyprice}₽ за штуку, обойдется вам в: {result}₽')
 
 
 # Создаем объект Updater и привязываем функции-обработчики к командам и сообщениям
