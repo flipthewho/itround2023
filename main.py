@@ -4,19 +4,20 @@ import openai, re, requests
 import xml.etree.ElementTree as ET
 
 # Устанавливаем токен и создаем экземпляр бота
-TOKEN = '6124725227:AAEbZBkGhBUNLMMTwkK9x0'
+TOKEN = '6124725227:AABUNLMMTwkK9x0'
 bot = telegram.Bot(token=TOKEN)
-openai.api_key = "sk-n8TA3BHaeTRvcQB3pwkL1yB4cwzRKx"
+openai.api_key = "sk-n8TA3BHahqkL1yB4cwzRKx"
 
 # Создаем пустой массив для сохранения введенных пользователем данных
 user_inputs = []
 prevprice = ''
 prevarend = ''
 
+
 def get_price(product_name):
     response = openai.Completion.create(
         engine="text-davinci-003",
-        prompt=f"What is the price of {product_name}?",
+        prompt=f"What is the price of {product_name}? type price in format'$Value', where Value is price. search median price on amazon.com",
         max_tokens=50
     )
     price_str = response.choices[0].text.strip()
@@ -42,17 +43,28 @@ def process_input(update, context):
         context.bot.send_message(chat_id=update.effective_chat.id, \
                                  text='Фиксируем')
     if len(user_inputs) == 9:
+        prevarend = int(user_inputs[5]) + int(user_inputs[6]) + int(user_inputs[7]) + (
+                (31 * 24 * int(user_inputs[8])) / 1000)
+
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text='Готово! Сейчас вернемся с результатами. Hang out \U0001F60E')
         name = f'{user_inputs[0]} {user_inputs[1]} {user_inputs[2]}'
-        data = [get_price(name).split()]
-        price = []
+        data = [get_price(name).replace(',', '', 1).replace('.', '', 1).split()]
         # бегаем по списку ищем цену в долларах
+        data = [get_price(name).replace(',', '', 1).replace('.', '', 1).split()]
         for i in range(len(data)):
             for x in data[i]:
                 if x[0] == '$':
                     x = re.sub("[^0-9]", "", x)
-                    price.append(int(x))
+                    break
+        # while int(x) > 10000 or int(x) < 900 or x == 0:  # подстрахуемся если нейронка дает слишком большую цену
+        #     data = [get_price(name).replace(',', '', 1).replace('.', '', 1).split()]
+        #     # бегаем по списку ищем цену в долларах
+        #     for i in range(len(data)):
+        #         for x in data[i]:
+        #             if x[0] == '$':
+        #                 x = re.sub("[^0-9]", "", x)
+        #                 break
         # чуток парсим цб
         usd_rate = float(
             ET.fromstring(requests.get('https://www.cbr.ru/scripts/XML_daily.asp').text)
@@ -60,16 +72,22 @@ def process_input(update, context):
             .text.replace(',', '.')
         )
         # конвертируем в рубли
-        finallyprice = int(usd_rate * (sum(price) / len(price)))
+        finallyprice = int(usd_rate) * int(x)
         # сервера - такие же компьютеры, и блоки питания по 0.5КВт, максимум 1кВт
         arendaAndOther = int(user_inputs[5]) + int(user_inputs[6]) + int(user_inputs[7]) + (
                 (31 * 24 * int(user_inputs[8])) / 1000)
         result = (finallyprice * int(user_inputs[7])) + (arendaAndOther * int(user_inputs[3]))
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text=f'Содержание {name}, стоящего {finallyprice}₽ за штуку, обойдется вам в: {result}₽ вместе с покупкой сервера\nОбслуживание в месяц будет стоить {arendaAndOther}₽')
+
+        if prevarend - arendaAndOther != 0.0:
+            context.bot.send_message(chat_id=update.effective_chat.id,
+                                     text=f'Цена за обслуживание в месяц с предущим вариантом разнится на {prevarend - arendaAndOther}₽')
         user_inputs.clear()
 
-# Создаем объект Updater и привязываем функции-обработчики к командам и сообщениям
+        # Создаем объект Updater и привязываем функции-обработчики к командам и сообщениям
+
+
 updater = Updater(bot.token, use_context=True)
 dispatcher = updater.dispatcher
 dispatcher.add_handler(CommandHandler('start', start))
