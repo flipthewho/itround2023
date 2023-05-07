@@ -4,9 +4,9 @@ import openai, re, requests
 import xml.etree.ElementTree as ET
 
 # Устанавливаем токен и создаем экземпляр бота
-TOKEN = '6124725227:AABUNLMMTwkK9x0'
+TOKEN = '6124725227:AAEbL3eq1B3dcMBEEZBkGhBUNLMMTwkK9x0'
 bot = telegram.Bot(token=TOKEN)
-openai.api_key = "sk-n8TA3BHahqkL1yB4cwzRKx"
+openai.api_key = "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"
 
 # Создаем пустой массив для сохранения введенных пользователем данных
 user_inputs = []
